@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>順利邨無障礙地圖 | Shun Lee Access Map</title>
+    
+    <!-- 1. 引入 Leaflet 地圖 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* 基礎樣式重置 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* 頂部標題欄樣式 */
+        #header {
+            height: 60px;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 1000;
+        }
+
+        #header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        /* 圖例樣式 */
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot.green { background-color: #27ae60; }
+        .dot.yellow { background-color: #f1c40f; }
+        .dot.red { background-color: #e74c3c; }
+
+        /* 地圖容器填滿剩餘空間 */
+        #map {
+            height: calc(100% - 60px);
+            width: 100%;
+        }
+
+        /* 美化彈出視窗 (Popup) */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        .leaflet-popup-content {
+            margin: 15px;
+            line-height: 1.5;
+        }
+        .popup-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        .popup-desc {
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* 自訂地圖文字標籤樣式 (Label) */
+        .custom-label {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            color: #2c3e50;
+            font-weight: bold;
+            font-size: 13px;
+            /* 白色描邊，確保在任何底圖上都能看清 */
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; 
+        }
+        /* 隱藏 Leaflet 預設的標籤小箭頭 */
+        .custom-label::before {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部標題與圖例 -->
+    <div id="header">
+        <h1>♿ 順利邨無障礙設施地圖</h1>
+        <div class="legend">
+            <div class="legend-item"><span class="dot green"></span> 設施良好</div>
+            <div class="legend-item"><span class="dot yellow"></span> 有障礙/需繞行</div>
+            <div class="legend-item"><span class="dot red"></span> 輪椅不可達</div>
+        </div>
+    </div>
+
+    <!-- 地圖顯示區域 -->
+    <div id="map"></div>
+
+    <!-- 2. 引入 Leaflet 地圖 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. 初始化地圖
+        // ==========================================
+        const map = L.map('map').setView([22.3321, 114.2255], 17);
+
+        // 載入香港地政總署免費底圖
+        L.tileLayer('https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/wgs84/{z}/{x}/{y}.png', {
+            attribution: '&copy; 香港地政總署',
+            maxZoom: 20
+        }).addTo(map);
+
+        // ==========================================
+        // 2. 資料集 (手動整理自 POF 堅毅忍者)
+        // ==========================================
+        const places = [
+            {
+                name: "順利商場 - 順利邨道入口",
+                lat: 22.3319, lng: 114.2248,
+                status: "yellow",
+                desc: "通道寬闊，一邊有一級梯級，另一邊設有斜道輔助，有觸覺引路帶伸延至梯級前。"
+            },
+            {
+                name: "順利商場 - 公園入口",
+                lat: 22.33070, lng: 114.22608  ,
+                status: "green",
+                desc: "寬闊斜道，兩旁只有圍欄無扶手，設有觸覺引路帶在斜路上伸延。"
+            },
+            {
+                name: "順利商場 - 往3樓電梯",
+                lat: 22.33079, lng: 114.22638,
+                status: "red",
+                desc: "由4級梯級和自動電梯組成。自動電梯無發聲裝置，輪椅不可用。"
+            },
+            {
+                name: "順利商場 - 往3樓長斜道",
+                lat: 22.3320, lng: 114.2250,
+                status: "yellow",
+                desc: "多段長斜道，段之間呈橫V字型轉折，斜度略高，底頂無觸覺警告帶。"
+            },
+            {
+                name: "順利停車場 - 出入口",
+                lat: 22.3331, lng: 114.2245,
+                status: "red",
+                desc: "出入口處有兩級梯級阻礙，兩邊無扶手，無觸覺引路帶。"
+            },
+            {
+                name: "順利天主教中學 - 正門",
+                lat: 22.3328, lng: 114.2267, // 👈 已更新到红圈位置
+                status: "red",
+                desc: "寬闊的梯級通道，往來學校大門，無升降設備輔助，無觸覺引路徑。"
+            },
+            {
+                name: "順利邨公園",
+                lat: 22.33019, lng: 114.22538, // 使用维基百科的精确坐标
+                status: "green", // 可根据POF数据自行调整颜色
+                desc: "地址：九龍觀塘順利邨道33號。設有暢通易達洗手間及觸覺引路帶等無障礙設施。"
+            }
+        ];
+
+        // ==========================================
+        // 3. 繪製點位、標籤與彈出視窗
+        // ==========================================
+        const colors = {
+            red: "#e74c3c",    
+            yellow: "#f1c40f", 
+            green: "#27ae60"   
+        };
+
+        places.forEach(place => {
+            // 畫圓點
+            const marker = L.circleMarker([place.lat, place.lng], {
+                radius: 9,
+                color: "#ffffff",          
+                weight: 2,                 
+                fillColor: colors[place.status], 
+                fillOpacity: 1
+            }).addTo(map);
+
+            // 綁定點擊彈窗 (Popup)
+            const popupContent = `
+                <div class="popup-title">${place.name}</div>
+                <div class="popup-desc">${place.desc}</div>
+            `;
+            marker.bindPopup(popupContent);
+
+            // 綁定永久顯示的文字標籤 (Label)
+            marker.bindTooltip(place.name, {
+                permanent: true,      // 永久顯示
+                direction: 'right',   // 顯示在圓點右側
+                className: 'custom-label', // 套用我們的透明描邊樣式
+                offset: [10, 0]       // 往右偏移 10px，避免擋住圓點
+            });
+        });
+
+      // ==========================================
+        // 5. 繪製示意路徑 (商場公園入口 -> 順利邨公園)
+        // ==========================================
+        const parkPathCoords = [
+            [22.33070, 114.22608], // 起點：商場 - 公園入口
+            [22.330445, 114.22555], // 👈 新增拐點 1 (跟著路走)
+            [22.33035, 114.225665], // 👈 新增拐點 2 (轉折處)
+            [22.33025, 114.22542], // 👈 新增拐點 3 (轉向公園)
+            [22.33019, 114.22538]  // 終點：順利邨公園
+     ];
+
+        L.polyline(parkPathCoords, {
+            color: "#2980b9", // 👈 改為藍色 (可以根據喜好微調色碼)
+            weight: 5,        // 👈 稍微加粗一點
+            // dashArray: "5, 10", // 👈 註解掉這行，就會變成實線
+            opacity: 0.9
+        }).addTo(map).bindPopup("<b>公園示意路徑</b><br>此段連接商場入口與順利邨公園。");
+    </script>
+</body>
+</html>
